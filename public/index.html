@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Gothenburg Transit Dashboard</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Left Sidebar -->
+  <aside id="sidebar">
+    <div id="controls">
+      <!-- Transport type selector (radio) -->
+      <div class="control-group">
+        <label>Show on map:</label>
+        <div class="radio-row">
+          <label class="radio-label"><input type="radio" name="transportType" value="tram" checked> Trams</label>
+          <label class="radio-label"><input type="radio" name="transportType" value="bus"> Buses</label>
+          <label class="radio-label"><input type="radio" name="transportType" value="ferry"> Ferries</label>
+        </div>
+      </div>
+
+      <!-- Line Table (dynamic) -->
+      <div id="line-table">
+        <div class="line-table-header">
+          <span>Tram Line</span>
+          <span>Direction</span>
+        </div>
+        <div id="line-list">
+          <div class="line-loading">Loading lines...</div>
+        </div>
+      </div>
+
+      <!-- Refresh indicator -->
+      <div class="refresh-row">
+        Auto-refresh: <span id="refreshTimer">30s</span>
+      </div>
+    </div>
+
+    <!-- Vertical Resize Handle -->
+    <div id="resize-handle-v" title="Drag to resize departure board"></div>
+
+    <!-- Stop Buttons -->
+    <div id="stop-buttons">
+      <button class="stop-btn active" data-gid="9021014005140000" data-name="Olivedalsgatan">Olivedalsgatan</button>
+      <button class="stop-btn" data-gid="9021014004510000" data-name="Linnéplatsen">Linnéplatsen</button>
+    </div>
+
+    <!-- Departure Board -->
+    <div id="departure-container">
+      <iframe
+        id="departureFrame"
+        src="https://avgangstavla.vasttrafik.se/?source=vasttrafikse&stopAreaGid=9021014005140000"
+        title="Departure Board"
+      ></iframe>
+    </div>
+  </aside>
+
+  <!-- Resize Handle -->
+  <div id="resize-handle" title="Drag to resize"></div>
+
+  <!-- Main Content -->
+  <main id="main">
+    <!-- Weather Widget -->
+    <div id="weather-widget">
+      <div id="weather-current">
+        <div id="weather-icon">--</div>
+        <div id="weather-details">
+          <div id="weather-temp-line">
+            <span id="weather-temp">--°C</span>
+            <span id="weather-feels">Feels --°C</span>
+          </div>
+          <div id="weather-desc">Loading...</div>
+          <div id="weather-meta">
+            <span id="weather-wind">💨 --</span>
+            <span id="weather-rain">🌧 --%</span>
+          </div>
+        </div>
+      </div>
+      <div id="weather-forecast"></div>
+    </div>
+
+    <!-- Traffic Disturbance Overlay -->
+    <div id="disturbance-overlay">
+      <div id="disturbance-header">
+        <span>⚠ Traffic Alerts</span>
+        <span id="disturbance-count"></span>
+      </div>
+      <div id="disturbance-list"></div>
+    </div>
+
+    <!-- Map -->
+    <div id="map"></div>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
