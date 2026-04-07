@@ -472,6 +472,9 @@ function renderWeather(data) {
   document.getElementById('weather-desc').textContent  = desc;
   document.getElementById('weather-wind').textContent  = `\ud83d\udca8 ${windKmh} km/h`;
   document.getElementById('weather-rain').textContent  = `\ud83c\udf27 ${precipProb}%`;
+  document.getElementById('weather-updated').textContent = 'Updated ' + new Date().toLocaleTimeString('sv-SE', {
+    timeZone: 'Europe/Stockholm', hour: '2-digit', minute: '2-digit',
+  });
 
   // --- Hourly forecast strip (current + next 8 hourly slots) ---
   const labelFor = t => new Date(t).toLocaleString('sv-SE', {
@@ -796,6 +799,13 @@ function startRefreshLoop() {
   handle.addEventListener('mousedown',  e => { e.preventDefault(); startResize(e.clientX); });
   handle.addEventListener('touchstart', e => { startResize(e.touches[0].clientX); }, { passive: true });
 }());
+
+// Weather refresh button
+document.getElementById('weather-refresh-btn').addEventListener('click', function () {
+  this.classList.add('spinning');
+  this.addEventListener('transitionend', () => this.classList.remove('spinning'), { once: true });
+  fetchWeather();
+});
 
 // Routes need a detailsReference from live data, so we fetch positions first,
 // then trigger routes for the two default-selected lines.
