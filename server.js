@@ -153,7 +153,10 @@ app.get('/api/disturbances/line/:gid', async (req, res) => {
       console.error(`Störning line error: ${r.status} ${body}`);
       return res.status(r.status).json({ error: body });
     }
-    res.json(await r.json());
+    const data = await r.json();
+    const situations = Array.isArray(data) ? data : data?.trafficSituations ?? data?.results ?? [];
+    const translated = await Promise.all(situations.map(translateSituation));
+    res.json(translated);
   } catch (err) {
     console.error('Disturbance line error:', err.message);
     res.status(500).json({ error: err.message });
@@ -173,8 +176,8 @@ app.get('/api/debug/linegids', async (req, res) => {
     const vehicles = await r.json();
     const lines = {};
     (Array.isArray(vehicles) ? vehicles : []).forEach(v => {
-      const name = v.line?.name;
-      if (name && !lines[name]) lines[name] = { gid: v.line.gid, name };
+      const desig = v.line?.designation || v.line?.name;
+      if (desig && !lines[desig]) lines[desig] = v.line;
     });
     res.json(lines);
   } catch (err) {
@@ -267,6 +270,22 @@ app.get('/api/vt/*', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Proxy error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Weather proxy (met.no requires a User-Agent header) ---
+app.get('/api/weather', async (req, res) => {
+  try {
+    const r = await fetch(
+      'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=57.7089&lon=11.9746',
+      { headers: { 'User-Agent': 'GothenburgTransitDashboard/1.0 contact@example.com' } }
+    );
+    if (!r.ok) throw new Error(`met.no ${r.status}`);
+    res.set('Cache-Control', 'public, max-age=300');
+    res.json(await r.json());
+  } catch (err) {
+    console.error('Weather proxy error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

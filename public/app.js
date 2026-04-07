@@ -33,19 +33,48 @@ const STATIC_TRAM_LINES = [
   { name: 'X',  route: 'Frihamnen \u2013 Kortedala (express)',   bg: '#ffffff', fg: '#c63539' },
 ];
 
-const WEATHER_CODES = {
-  0:  ['\u2600\ufe0f', 'Clear sky'],        1:  ['\ud83c\udf24\ufe0f', 'Mainly clear'],
-  2:  ['\u26c5', 'Partly cloudy'],           3:  ['\u2601\ufe0f', 'Overcast'],
-  45: ['\ud83c\udf2b\ufe0f', 'Fog'],         48: ['\ud83c\udf2b\ufe0f', 'Freezing fog'],
-  51: ['\ud83c\udf26\ufe0f', 'Light drizzle'], 53: ['\ud83c\udf26\ufe0f', 'Drizzle'],
-  55: ['\ud83c\udf27\ufe0f', 'Dense drizzle'], 61: ['\ud83c\udf27\ufe0f', 'Light rain'],
-  63: ['\ud83c\udf27\ufe0f', 'Moderate rain'], 65: ['\ud83c\udf27\ufe0f', 'Heavy rain'],
-  71: ['\ud83c\udf28\ufe0f', 'Light snow'],   73: ['\ud83c\udf28\ufe0f', 'Moderate snow'],
-  75: ['\u2744\ufe0f', 'Heavy snow'],         80: ['\ud83c\udf26\ufe0f', 'Light showers'],
-  81: ['\ud83c\udf27\ufe0f', 'Showers'],      82: ['\u26c8\ufe0f', 'Heavy showers'],
-  95: ['\u26c8\ufe0f', 'Thunderstorm'],       96: ['\u26c8\ufe0f', 'Thunderstorm+hail'],
-  99: ['\u26c8\ufe0f', 'Thunderstorm+hail'],
+// met.no symbol code → [emoji, description]
+const MET_SYMBOLS = {
+  clearsky:            ['\u2600\ufe0f', 'Clear sky'],
+  fair:                ['\ud83c\udf24\ufe0f', 'Mainly clear'],
+  partlycloudy:        ['\u26c5', 'Partly cloudy'],
+  cloudy:              ['\u2601\ufe0f', 'Cloudy'],
+  fog:                 ['\ud83c\udf2b\ufe0f', 'Fog'],
+  lightrain:           ['\ud83c\udf26\ufe0f', 'Light rain'],
+  rain:                ['\ud83c\udf27\ufe0f', 'Rain'],
+  heavyrain:           ['\ud83c\udf27\ufe0f', 'Heavy rain'],
+  lightrainshowers:    ['\ud83c\udf26\ufe0f', 'Light showers'],
+  rainshowers:         ['\ud83c\udf27\ufe0f', 'Showers'],
+  heavyrainshowers:    ['\u26c8\ufe0f', 'Heavy showers'],
+  lightsleet:          ['\ud83c\udf28\ufe0f', 'Light sleet'],
+  sleet:               ['\ud83c\udf28\ufe0f', 'Sleet'],
+  lightsleetshowers:   ['\ud83c\udf28\ufe0f', 'Light sleet showers'],
+  sleetshowers:        ['\ud83c\udf28\ufe0f', 'Sleet showers'],
+  lightsnow:           ['\ud83c\udf28\ufe0f', 'Light snow'],
+  snow:                ['\u2744\ufe0f', 'Snow'],
+  heavysnow:           ['\u2744\ufe0f', 'Heavy snow'],
+  lightsnowshowers:    ['\ud83c\udf28\ufe0f', 'Light snow showers'],
+  snowshowers:         ['\u2744\ufe0f', 'Snow showers'],
+  heavysnowshowers:    ['\u2744\ufe0f', 'Heavy snow showers'],
+  thunder:             ['\u26c8\ufe0f', 'Thunder'],
+  rainandthunder:      ['\u26c8\ufe0f', 'Rain & thunder'],
+  lightrainandthunder: ['\u26c8\ufe0f', 'Light rain & thunder'],
+  heavyrainandthunder: ['\u26c8\ufe0f', 'Heavy rain & thunder'],
+  snowandthunder:      ['\u26c8\ufe0f', 'Snow & thunder'],
+  sleetandthunder:     ['\u26c8\ufe0f', 'Sleet & thunder'],
 };
+
+function metSymbol(code) {
+  if (!code) return ['\ud83c\udf21\ufe0f', 'Unknown'];
+  const base = code.replace(/_(day|night|polartwilight)$/, '');
+  return MET_SYMBOLS[base] || ['\ud83c\udf21\ufe0f', base];
+}
+
+function windChill(tempC, windMs) {
+  const windKmh = windMs * 3.6;
+  if (tempC > 10 || windKmh < 4.8) return tempC;
+  return 13.12 + 0.6215 * tempC - 11.37 * Math.pow(windKmh, 0.16) + 0.3965 * tempC * Math.pow(windKmh, 0.16);
+}
 
 const MODE_LABELS = { tram: 'Tram Line', bus: 'Bus Line', ferry: 'Ferry Line' };
 
@@ -172,6 +201,7 @@ lineListEl.addEventListener('click', e => {
   }
   buildLineTable();
   fetchVehiclePositions();
+  fetchDisturbances();
 });
 
 // Direction dropdown
@@ -410,74 +440,70 @@ document.getElementById('stop-buttons').addEventListener('click', e => {
 // Weather Widget (enhanced — current + 8-hour hourly forecast)
 // ============================================================
 
-function findCurrentHourIdx(times) {
-  // times[] are Stockholm local time strings like "2024-01-15T14:00"
-  // Compare against the current Stockholm time rendered as the same format.
-  const nowStr = new Date().toLocaleString('sv-SE', {
-    timeZone: 'Europe/Stockholm',
-    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit',
-  }).replace(',', ''); // "2024-01-15 14" (sv-SE uses space, not T)
-  const idx = times.findIndex(t => t.replace('T', ' ').slice(0, 13) === nowStr);
-  return idx >= 0 ? idx : 0;
-}
-
 async function fetchWeather() {
   try {
-    const res = await fetch(
-      'https://api.open-meteo.com/v1/forecast?latitude=57.7089&longitude=11.9746' +
-      '&current=temperature_2m,weather_code,precipitation_probability,wind_speed_10m,apparent_temperature' +
-      '&hourly=temperature_2m,precipitation_probability,weather_code,precipitation' +
-      '&timezone=Europe%2FStockholm&forecast_days=2'
-    );
-    const data = await res.json();
-    renderWeather(data);
+    const res = await fetch('/api/weather');
+    if (!res.ok) throw new Error(`Weather ${res.status}`);
+    renderWeather(await res.json());
   } catch (err) {
     document.getElementById('weather-desc').textContent = 'Weather unavailable';
   }
 }
 
 function renderWeather(data) {
-  const c = data.current;
-  const [emoji, desc] = WEATHER_CODES[c.weather_code] || ['\ud83c\udf21\ufe0f', 'Unknown'];
+  const ts  = data.properties.timeseries;
+  const now = Date.now();
 
-  document.getElementById('weather-icon').textContent = emoji;
-  document.getElementById('weather-temp').textContent = `${Math.round(c.temperature_2m)}\u00b0C`;
-  document.getElementById('weather-feels').textContent = `Feels ${Math.round(c.apparent_temperature)}\u00b0C`;
-  document.getElementById('weather-desc').textContent = desc;
-  document.getElementById('weather-wind').textContent = `\ud83d\udca8 ${Math.round(c.wind_speed_10m)} km/h`;
-  document.getElementById('weather-rain').textContent =
-    c.precipitation_probability != null ? `\ud83c\udf27 ${c.precipitation_probability}%` : '';
+  // Find the timeslot that covers right now
+  let ci = ts.findLastIndex(t => new Date(t.time).getTime() <= now);
+  if (ci < 0) ci = 0;
 
-  // --- Hourly forecast strip (next 9 hours including current) ---
-  const times  = data.hourly.time;
-  const probs  = data.hourly.precipitation_probability;
-  const codes  = data.hourly.weather_code;
-  const startI = findCurrentHourIdx(times);
+  const cur     = ts[ci].data;
+  const details = cur.instant.details;
+  const next1h  = cur.next_1_hours || cur.next_6_hours;
+  const [emoji, desc] = metSymbol(next1h?.summary?.symbol_code);
+  const feels   = Math.round(windChill(details.air_temperature, details.wind_speed));
+  const windKmh = Math.round(details.wind_speed * 3.6);
+  const precipProb = Math.round(next1h?.details?.probability_of_precipitation ?? 0);
 
-  const hours = [];
-  for (let i = startI; i < Math.min(startI + 9, times.length); i++) {
-    hours.push({
-      label:  times[i].slice(11, 16),  // "14:00"
-      prob:   probs[i] ?? 0,
-      emoji:  (WEATHER_CODES[codes[i]] || ['\ud83c\udf21\ufe0f'])[0],
-    });
-  }
+  document.getElementById('weather-icon').textContent  = emoji;
+  document.getElementById('weather-temp').textContent  = `${Math.round(details.air_temperature)}\u00b0C`;
+  document.getElementById('weather-feels').textContent = `Feels ${feels}\u00b0C`;
+  document.getElementById('weather-desc').textContent  = desc;
+  document.getElementById('weather-wind').textContent  = `\ud83d\udca8 ${windKmh} km/h`;
+  document.getElementById('weather-rain').textContent  = `\ud83c\udf27 ${precipProb}%`;
 
-  // Find next rain event for summary label
-  const nextRain = hours.slice(1).find(h => h.prob >= 40);
+  // --- Hourly forecast strip (current + next 8 hourly slots) ---
+  const labelFor = t => new Date(t).toLocaleString('sv-SE', {
+    timeZone: 'Europe/Stockholm', hour: '2-digit',
+  });
+
+  const hours = [
+    { label: labelFor(ts[ci].time), prob: precipProb, emoji },
+    ...ts.slice(ci + 1)
+         .filter(t => t.data.next_1_hours)
+         .slice(0, 8)
+         .map(t => {
+           const h1  = t.data.next_1_hours;
+           const prob = Math.round(h1?.details?.probability_of_precipitation ?? 0);
+           return { label: labelFor(t.time), prob, emoji: metSymbol(h1?.summary?.symbol_code)[0] };
+         }),
+  ];
+
+  const nextRain   = hours.slice(1).find(h => h.prob >= 40);
   const rainSummary = nextRain
-    ? `Rain possible around ${nextRain.label}`
+    ? `Rain possible around ${nextRain.label}:00`
     : hours[0].prob >= 40 ? 'Rain likely now' : 'No rain expected soon';
 
   const forecastEl = document.getElementById('weather-forecast');
   const hourCols = hours.map(h => {
     const color = h.prob >= 70 ? '#00b4d8' : h.prob >= 40 ? '#78909c' : '#37474f';
-    const barH  = Math.max(2, Math.round(h.prob * 0.22)); // 0–22px
+    const barH  = Math.max(0.125, +(h.prob * 0.01375).toFixed(3)); // em units
     return `
       <div class="forecast-hour">
-        <div class="forecast-time">${h.label.slice(0, 2)}</div>
+        <div class="forecast-time">${h.label}</div>
         <div class="forecast-emoji">${h.emoji}</div>
-        <div class="forecast-bar" style="height:${barH}px;background:${color}"></div>
+        <div class="forecast-bar" style="height:${barH}em;background:${color}"></div>
         <div class="forecast-prob" style="color:${color}">${h.prob}%</div>
       </div>`;
   }).join('');
@@ -515,16 +541,31 @@ function severityColor(sev) {
   return '#78909c';
 }
 
+function lineNameToGid(name) {
+  const num = parseInt(name, 10);
+  if (!num) return null; // 'X' or non-numeric
+  return `9011014` + `5${String(num).padStart(3, '0')}00000`;
+}
+
 async function fetchDisturbances() {
-  if (!activeStopGid) return;
+  const lines = selectedLines.size > 0
+    ? [...selectedLines]
+    : STATIC_TRAM_LINES.map(l => l.name);
+
+  const gids = lines.map(lineNameToGid).filter(Boolean);
+  if (gids.length === 0) return;
 
   try {
-    const raw = await fetch(`/api/disturbances/stop/${encodeURIComponent(activeStopGid)}`)
-      .then(r => r.ok ? r.json() : [])
-      .catch(() => []);
+    const results = await Promise.all(
+      gids.map(gid =>
+        fetch(`/api/disturbances/line/${encodeURIComponent(gid)}`)
+          .then(r => r.ok ? r.json() : [])
+          .catch(() => [])
+      )
+    );
 
     const situMap = new Map();
-    extractSituations(raw).forEach(s => {
+    results.flat().forEach(s => {
       const key = s.situationNumber || s.id || situationText(s);
       if (!situMap.has(key)) situMap.set(key, s);
     });
@@ -551,6 +592,14 @@ function renderDisturbances(situations) {
 
   overlay.style.display = 'flex';
   countEl.textContent   = `${active.length} alert${active.length !== 1 ? 's' : ''}`;
+
+  // Set up click-to-expand toggle (attach once)
+  if (!overlay.dataset.toggleReady) {
+    overlay.dataset.toggleReady = '1';
+    document.getElementById('disturbance-header').addEventListener('click', () => {
+      overlay.classList.toggle('collapsed');
+    });
+  }
 
   list.innerHTML = active.map(s => {
     const color = severityColor(s.severity);
@@ -707,6 +756,49 @@ function startRefreshLoop() {
 // Boot — load default routes for lines 1 and 6 once positions arrive
 // ============================================================
 
+// ============================================================
+// Weather Widget — resize drag (bottom-left handle)
+// ============================================================
+(function () {
+  const widget = document.getElementById('weather-widget');
+  const handle = document.getElementById('weather-resize-handle');
+  const BASE_WIDTH = 270;
+
+  function updateScale() {
+    widget.style.fontSize = (widget.offsetWidth / BASE_WIDTH) + 'rem';
+  }
+
+  function startResize(clientX) {
+    const startX     = clientX;
+    const startWidth = widget.offsetWidth;
+
+    function onMove(clientX) {
+      const dx = startX - clientX;           // dragging left = wider
+      const w  = Math.max(160, Math.min(520, startWidth + dx));
+      widget.style.width = w + 'px';
+      updateScale();
+    }
+
+    function onMouseMove(e) { onMove(e.clientX); }
+    function onTouchMove(e) { onMove(e.touches[0].clientX); }
+
+    function cleanup() {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup',   cleanup);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend',  cleanup);
+    }
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup',   cleanup);
+    document.addEventListener('touchmove', onTouchMove, { passive: true });
+    document.addEventListener('touchend',  cleanup);
+  }
+
+  handle.addEventListener('mousedown',  e => { e.preventDefault(); startResize(e.clientX); });
+  handle.addEventListener('touchstart', e => { startResize(e.touches[0].clientX); }, { passive: true });
+}());
+
 // Routes need a detailsReference from live data, so we fetch positions first,
 // then trigger routes for the two default-selected lines.
 async function boot() {
@@ -731,5 +823,39 @@ async function boot() {
     refreshTimerEl.textContent = `${refreshCountdown}s`;
   }, 1000);
 }
+
+// ============================================================
+// TEMPORARY — Pane size inspector (remove when defaults are set)
+// ============================================================
+(function () {
+  const panel = document.createElement('div');
+  panel.id = 'pane-size-debug';
+  Object.assign(panel.style, {
+    position: 'fixed', bottom: '12px', left: '50%', transform: 'translateX(-50%)',
+    zIndex: 9999, background: 'rgba(0,0,0,0.82)', color: '#00e5ff',
+    fontFamily: 'monospace', fontSize: '12px', padding: '8px 14px',
+    borderRadius: '8px', border: '1px solid #00b4d8', pointerEvents: 'none',
+    whiteSpace: 'nowrap', lineHeight: '1.7',
+  });
+  document.body.appendChild(panel);
+
+  const sidebar  = document.getElementById('sidebar');
+  const depCont  = document.getElementById('departure-container');
+  const weather  = document.getElementById('weather-widget');
+
+  function update() {
+    panel.innerHTML =
+      `sidebar: <b>${sidebar.offsetWidth}px</b> wide` +
+      `&nbsp;&nbsp;|&nbsp;&nbsp;` +
+      `departure board: <b>${depCont.offsetHeight}px</b> tall` +
+      `&nbsp;&nbsp;|&nbsp;&nbsp;` +
+      `weather widget: <b>${weather.offsetWidth}px</b> wide`;
+  }
+
+  update();
+  const ro = new ResizeObserver(update);
+  [sidebar, depCont, weather].forEach(el => ro.observe(el));
+}());
+// ============================================================
 
 boot();
