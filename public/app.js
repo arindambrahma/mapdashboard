@@ -716,12 +716,11 @@ function startRefreshLoop() {
     return Math.min(max, Math.max(MIN_H, raw));
   }
 
-  // Default: departure board = 80% of sidebar height
+  // Default: departure board fixed height (tablet-tested)
   function setDefaultHeight() {
-    depCont.style.height = Math.floor(sidebar.offsetHeight * 0.8) + 'px';
+    depCont.style.height = '440px';
   }
   setDefaultHeight();
-  window.addEventListener('resize', setDefaultHeight);
 
   function startDrag() {
     dragging = true;
@@ -730,7 +729,6 @@ function startRefreshLoop() {
     document.body.style.userSelect    = 'none';
     document.body.style.pointerEvents = 'none';
     handle.style.pointerEvents        = 'auto';
-    window.removeEventListener('resize', setDefaultHeight);
   }
   function onDrag(clientY) {
     if (!dragging) return;
@@ -762,7 +760,7 @@ function startRefreshLoop() {
 (function () {
   const widget = document.getElementById('weather-widget');
   const handle = document.getElementById('weather-resize-handle');
-  const BASE_WIDTH = 270;
+  const BASE_WIDTH = 301;
 
   function updateScale() {
     widget.style.fontSize = (widget.offsetWidth / BASE_WIDTH) + 'rem';
@@ -823,39 +821,5 @@ async function boot() {
     refreshTimerEl.textContent = `${refreshCountdown}s`;
   }, 1000);
 }
-
-// ============================================================
-// TEMPORARY — Pane size inspector (remove when defaults are set)
-// ============================================================
-(function () {
-  const panel = document.createElement('div');
-  panel.id = 'pane-size-debug';
-  Object.assign(panel.style, {
-    position: 'fixed', bottom: '12px', left: '50%', transform: 'translateX(-50%)',
-    zIndex: 9999, background: 'rgba(0,0,0,0.82)', color: '#00e5ff',
-    fontFamily: 'monospace', fontSize: '12px', padding: '8px 14px',
-    borderRadius: '8px', border: '1px solid #00b4d8', pointerEvents: 'none',
-    whiteSpace: 'nowrap', lineHeight: '1.7',
-  });
-  document.body.appendChild(panel);
-
-  const sidebar  = document.getElementById('sidebar');
-  const depCont  = document.getElementById('departure-container');
-  const weather  = document.getElementById('weather-widget');
-
-  function update() {
-    panel.innerHTML =
-      `sidebar: <b>${sidebar.offsetWidth}px</b> wide` +
-      `&nbsp;&nbsp;|&nbsp;&nbsp;` +
-      `departure board: <b>${depCont.offsetHeight}px</b> tall` +
-      `&nbsp;&nbsp;|&nbsp;&nbsp;` +
-      `weather widget: <b>${weather.offsetWidth}px</b> wide`;
-  }
-
-  update();
-  const ro = new ResizeObserver(update);
-  [sidebar, depCont, weather].forEach(el => ro.observe(el));
-}());
-// ============================================================
 
 boot();

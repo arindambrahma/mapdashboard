@@ -18,7 +18,7 @@ body {
 
 /* --- Left Sidebar --- */
 #sidebar {
-  width: 75vw;
+  width: 633px;
   min-width: 220px;
   max-width: 90vw;
   height: 100vh;
@@ -358,7 +358,7 @@ body {
   border: 1px solid #0f3460;
   border-radius: 12px;
   padding: 0.75em;
-  width: 270px;
+  width: 301px;
   min-width: 160px;
   max-width: 520px;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
